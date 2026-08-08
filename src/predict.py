@@ -39,6 +39,9 @@ except ImportError:
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_MODEL_PATH = os.path.join(BASE_DIR, "model", "churn_model.pkl")
 
+# The trained dataset stores charges in its original currency scale. Users enter ₹.
+INR_PER_MODEL_CURRENCY = 83.0
+
 logging.basicConfig(
     level=logging.WARNING,   # keep output clean for interactive use
     format="%(levelname)s  %(message)s",
@@ -61,7 +64,6 @@ QUESTIONS = [
         "prompt": "Customer gender (Male / Female)",
         "type": "str",
         "valid": ["Male", "Female"],
-        "display": ["Male", "Female"],
     },
     {
         "key": "Partner",
@@ -164,15 +166,15 @@ QUESTIONS = [
     },
     {
         "key": "MonthlyCharges",
-        "prompt": "Monthly charges (e.g. 65.50)",
+        "prompt": "Monthly charges in ₹ (e.g. 5,000)",
         "type": "float",
-        "range": (0, 200),
+        "range": (0, 200 * INR_PER_MODEL_CURRENCY),
     },
     {
         "key": "TotalCharges",
-        "prompt": "Total charges to date (e.g. 1200.00)",
+        "prompt": "Total charges to date in ₹ (e.g. 60,000)",
         "type": "float",
-        "range": (0, 10000),
+        "range": (0, 10_000 * INR_PER_MODEL_CURRENCY),
     },
 ]
 
@@ -200,18 +202,18 @@ def _ask(question: dict) -> object:
             raw = input(prompt_text).strip()
 
             if question["type"] == "int":
-                val = int(raw)
-                if "valid" in question and str(val) not in question["valid"]:
+                value = int(raw)
+                if "valid" in question and str(value) not in question["valid"]:
                     raise ValueError
-                return val
+                return value
 
             elif question["type"] == "float":
-                val = float(raw)
+                value = float(raw)
                 lo, hi = question.get("range", (-1e9, 1e9))
-                if not (lo <= val <= hi):
+                if not (lo <= value <= hi):
                     print(f"    ⚠  Please enter a value between {lo} and {hi}.")
                     continue
-                return val
+                return value
 
             else:  # str
                 if "valid" in question:
@@ -278,6 +280,9 @@ def preprocess_input(raw: dict, feature_names: list, scaler) -> np.ndarray:
     """
     df = pd.DataFrame([raw])
 
+    # Convert rupees to the scale used when the model was trained.
+    df[["MonthlyCharges", "TotalCharges"]] /= INR_PER_MODEL_CURRENCY
+
     # --- Engineer the same features as training ---
     bins = [0, 12, 24, 36, 48, 60, 72]
     labels = ["0-12", "13-24", "25-36", "37-48", "49-60", "61-72"]
@@ -323,19 +328,11 @@ def preprocess_input(raw: dict, feature_names: list, scaler) -> np.ndarray:
     bool_cols = df.select_dtypes(include="bool").columns
     df[bool_cols] = df[bool_cols].astype(int)
 
-    # --- Align columns to training feature set ---
-    # Add any missing columns (from get_dummies) as 0
-    for col in feature_names:
-        if col not in df.columns:
-            df[col] = 0
-
-    # Drop extra columns not in training set
-    df = df[[c for c in feature_names if c in df.columns]]
-
-    # Re-order to match training
+    # Keep exactly the columns, order, and default values used during training.
     df = df.reindex(columns=feature_names, fill_value=0)
 
-    X = df.values.astype(float)
+    # Keep column names while scaling to match the training data exactly.
+    X = df.astype(float)
 
     if scaler is not None:
         X = scaler.transform(X)
@@ -378,7 +375,7 @@ def get_retention_actions(raw: dict, churn_prob: float) -> list:
     if float(raw.get("tenure", 0)) < 12:
         actions.append("🎁  Enrol customer in a loyalty rewards programme (early tenure).")
 
-    if float(raw.get("MonthlyCharges", 0)) > 70:
+    if float(raw.get("MonthlyCharges", 0)) > 70 * INR_PER_MODEL_CURRENCY:
         actions.append("💰  Offer a personalised discount or a lower-tier plan review.")
 
     if raw.get("PaymentMethod") == "Electronic check":
@@ -440,8 +437,8 @@ def get_top_reasons(
                 shap_vals = explainer.shap_values(X_input)
                 vals = shap_vals[1][0] if isinstance(shap_vals, list) else shap_vals[0]
 
-            top_idx = np.argsort(np.abs(vals))[::-1][:top_n]
-            for i in top_idx:
+            top_indices = np.argsort(np.abs(vals))[::-1][:top_n]
+            for i in top_indices:
                 direction = "↑ increases" if vals[i] > 0 else "↓ decreases"
                 reasons.append(
                     f"  • {feature_names[i]:<35}  {direction} churn risk  (SHAP: {vals[i]:+.3f})"
@@ -458,8 +455,8 @@ def get_top_reasons(
     else:
         return ["  • Feature importance not available for this model type."]
 
-    top_idx = np.argsort(importances)[::-1][:top_n]
-    for i in top_idx:
+    top_indices = np.argsort(importances)[::-1][:top_n]
+    for i in top_indices:
         reasons.append(
             f"  • {feature_names[i]:<35}  importance: {importances[i]:.4f}"
         )

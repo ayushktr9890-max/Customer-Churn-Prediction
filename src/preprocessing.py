@@ -180,7 +180,7 @@ _OHE_COLS = [
 ]
 
 
-def encode_features(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+def encode_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Encode all categorical columns:
       - Binary columns (Yes/No, Male/Female) → Label Encoding.
@@ -194,30 +194,24 @@ def encode_features(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
     Returns
     -------
-    tuple[pd.DataFrame, dict]
-        - encoded dataframe
-        - encoding_info dict with label encoder objects keyed by column name
-          (useful for inverse-transforming in the prediction script).
+    pd.DataFrame
+        Encoded dataframe.
     """
     df = df.copy()
-    encoding_info: dict = {"label_encoders": {}, "ohe_columns": []}
-
     # --- Label Encoding ---
     le = LabelEncoder()
     for col in _BINARY_COLS:
         if col in df.columns:
             df[col] = le.fit_transform(df[col].astype(str))
-            encoding_info["label_encoders"][col] = le
             logger.info("Label-encoded: %s", col)
 
     # --- One-Hot Encoding ---
     ohe_present = [c for c in _OHE_COLS if c in df.columns]
     df = pd.get_dummies(df, columns=ohe_present, drop_first=True)
-    encoding_info["ohe_columns"] = [c for c in df.columns if c not in df.select_dtypes(include="number").columns]
     logger.info("One-hot encoded: %s", ohe_present)
     logger.info("Encoded shape: %s", df.shape)
 
-    return df, encoding_info
+    return df
 
 
 # ---------------------------------------------------------------------------
@@ -309,14 +303,14 @@ def run_preprocessing_pipeline(
 
     Returns
     -------
-    tuple : (X_train, X_test, y_train, y_test, scaler, feature_names, encoding_info)
+    tuple : (X_train, X_test, y_train, y_test, scaler, feature_names)
     """
     logger.info("Starting preprocessing pipeline...")
-    df_clean = clean_data(df)
-    df_feat = engineer_features(df_clean)
-    df_enc, encoding_info = encode_features(df_feat)
+    cleaned_data = clean_data(df)
+    featured_data = engineer_features(cleaned_data)
+    encoded_data = encode_features(featured_data)
     X_train, X_test, y_train, y_test, scaler, feature_names = split_and_scale(
-        df_enc, target=target, test_size=test_size, random_state=random_state
+        encoded_data, target=target, test_size=test_size, random_state=random_state
     )
     logger.info("Preprocessing pipeline complete.")
-    return X_train, X_test, y_train, y_test, scaler, feature_names, encoding_info
+    return X_train, X_test, y_train, y_test, scaler, feature_names

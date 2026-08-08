@@ -23,15 +23,15 @@ Customer churn — when a customer stops using a company's service — is one of
 | Attribute | Details |
 |-----------|---------|
 | Name | IBM Telco Customer Churn |
-| Source | [Kaggle](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) |
+| Source | Local `customer_churn.csv` file |
 | Rows | 7,043 |
 | Columns | 21 |
 | Target | `Churn` (Yes=~27%, No=~73%) |
 | Key Features | tenure, Contract, MonthlyCharges, InternetService, PaymentMethod |
 
-Download the dataset from Kaggle and place it at:
+Place your dataset in the project root:
 ```
-data/customer_churn.csv
+customer_churn.csv
 ```
 
 ---
@@ -59,11 +59,11 @@ venv\Scripts\activate             # Windows
 pip install -r requirements.txt
 ```
 
-### 4. Download the dataset
+### 4. Add the dataset
 
-Download `WA_Fn-UseC_-Telco-Customer-Churn.csv` from Kaggle and rename/place it:
+The project uses the local CSV already included in the repository:
 ```
-data/customer_churn.csv
+customer_churn.csv
 ```
 
 ---
@@ -105,6 +105,9 @@ The prediction script will prompt you for customer details and output:
 - Top features influencing the prediction
 - Suggested retention actions
 
+Enter monthly and total charges in Indian rupees (₹). The prediction script
+converts these values to the scale used by the trained model before predicting.
+
 ---
 
 ## Machine Learning Pipeline
@@ -143,6 +146,30 @@ Raw CSV
 [10] Persistence           ← model/churn_model.pkl (model + scaler + feature names)
 ```
 
+### Live Prediction Workflow
+
+```
+Customer details
+   │
+   ▼
+[1] Validate input         ← required fields, valid options, ₹ charge ranges
+   │
+   ▼
+[2] Convert charges        ← ₹ values converted to the model's training scale
+   │
+   ▼
+[3] Preprocess             ← engineer features, encode categories, align columns, scale
+   │
+   ▼
+[4] Predict churn          ← Random Forest returns class and probability
+   │
+   ▼
+[5] Explain result         ← top churn drivers and risk level
+   │
+   ▼
+[6] Recommend action       ← tailored retention suggestions for the customer
+```
+
 ---
 
 ## Results
@@ -169,8 +196,7 @@ Raw CSV
 
 ```
 Customer-Churn-Prediction/
-├── data/
-│   └── customer_churn.csv          ← raw dataset (download from Kaggle)
+├── customer_churn.csv              ← local raw dataset
 ├── notebooks/
 │   ├── 01_data_understanding.ipynb
 │   ├── 02_data_cleaning.ipynb

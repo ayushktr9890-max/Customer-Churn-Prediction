@@ -18,7 +18,6 @@ Outputs
 import os
 import sys
 import logging
-import pickle
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -71,7 +70,7 @@ logger = logging.getLogger(__name__)
 # Path constants
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_PATH = os.path.join(BASE_DIR, "data", "customer_churn.csv")
+DATA_PATH = os.path.join(BASE_DIR, "customer_churn.csv")
 MODEL_PATH = os.path.join(BASE_DIR, "model", "churn_model.pkl")
 PLOTS_DIR = os.path.join(BASE_DIR, "outputs", "plots")
 REPORTS_DIR = os.path.join(BASE_DIR, "outputs", "reports")
@@ -187,11 +186,11 @@ def select_best_model(metrics: list, trained_models: dict, metric: str = "roc_au
     -------
     tuple : (best_name, best_model)
     """
-    valid = [m for m in metrics if isinstance(m[metric], (int, float))]
-    best = max(valid, key=lambda m: m[metric])
-    best_name = best["model"]
+    valid_metrics = [item for item in metrics if isinstance(item[metric], (int, float))]
+    best_metrics = max(valid_metrics, key=lambda item: item[metric])
+    best_name = best_metrics["model"]
     logger.info(
-        "Best model: %s  (ROC-AUC = %.4f)", best_name, best[metric]
+        "Best model: %s  (ROC-AUC = %.4f)", best_name, best_metrics[metric]
     )
     return best_name, trained_models[best_name]
 
@@ -227,23 +226,23 @@ def run_shap_analysis(model, X_test, feature_names: list, save_dir: str) -> None
             shap_values = explainer.shap_values(X_test)
             # For binary classification RF/DT, shap_values is a list [class0, class1]
             if isinstance(shap_values, list):
-                shap_vals = shap_values[1]
+                churn_shap_values = shap_values[1]
             else:
-                shap_vals = shap_values
+                churn_shap_values = shap_values
         else:
             # Use a small sample for KernelExplainer (computationally heavy)
             X_test_sample = X_test[:200]
             background = shap.sample(X_test, 100)
             explainer = shap.KernelExplainer(model.predict_proba, background)
             shap_values = explainer.shap_values(X_test_sample)
-            shap_vals = shap_values[1] if isinstance(shap_values, list) else shap_values
+            churn_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
             X_test = X_test_sample  # align X_test to the sample used
 
         X_test_df = pd.DataFrame(X_test, columns=feature_names)
 
         # Summary bar plot
         plt.figure()
-        shap.summary_plot(shap_vals, X_test_df, plot_type="bar", show=False)
+        shap.summary_plot(churn_shap_values, X_test_df, plot_type="bar", show=False)
         bar_path = os.path.join(save_dir, "shap_summary_bar.png")
         plt.savefig(bar_path, dpi=150, bbox_inches="tight")
         plt.close()
@@ -251,7 +250,7 @@ def run_shap_analysis(model, X_test, feature_names: list, save_dir: str) -> None
 
         # Summary beeswarm plot
         plt.figure()
-        shap.summary_plot(shap_vals, X_test_df, show=False)
+        shap.summary_plot(churn_shap_values, X_test_df, show=False)
         beeswarm_path = os.path.join(save_dir, "shap_summary_beeswarm.png")
         plt.savefig(beeswarm_path, dpi=150, bbox_inches="tight")
         plt.close()
@@ -293,7 +292,7 @@ def main():
     df = load_dataset(DATA_PATH)
 
     # ── Preprocessing ─────────────────────────────────────────────────────
-    X_train, X_test, y_train, y_test, scaler, feature_names, encoding_info = (
+    X_train, X_test, y_train, y_test, scaler, feature_names = (
         run_preprocessing_pipeline(df)
     )
 
@@ -358,7 +357,6 @@ def main():
         "model_name": best_name,
         "scaler": scaler,
         "feature_names": feature_names,
-        "encoding_info": encoding_info,
     }
     save_model(model_bundle, MODEL_PATH)
 

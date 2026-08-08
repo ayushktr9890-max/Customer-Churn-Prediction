@@ -12,14 +12,13 @@ Usage
 
 Output
 ------
-    data/customer_churn.csv  — cleaned, standard-format CSV ready for training
+    customer_churn.csv  — cleaned, standard-format CSV ready for training
 """
 
 import os
 import sys
 import argparse
 import pandas as pd
-import numpy as np
 
 
 # ── Column mapping: standard column names expected by the project ────────────
@@ -98,8 +97,7 @@ def load_file(filepath: str) -> pd.DataFrame:
 
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Rename columns to standard names using the alias map."""
-    df = df.rename(columns=COLUMN_ALIASES)
-    return df
+    return df.rename(columns=COLUMN_ALIASES)
 
 
 def fix_senior_citizen(df: pd.DataFrame) -> pd.DataFrame:
@@ -108,10 +106,10 @@ def fix_senior_citizen(df: pd.DataFrame) -> pd.DataFrame:
     The extended dataset uses 'Yes'/'No' strings.
     """
     if "SeniorCitizen" in df.columns:
-        col = df["SeniorCitizen"].astype(str).str.strip().str.lower()
-        if col.isin(["yes", "no"]).any():
+        senior_values = df["SeniorCitizen"].astype(str).str.strip().str.lower()
+        if senior_values.isin(["yes", "no"]).any():
             print("  Converting SeniorCitizen from Yes/No to 1/0...")
-            df["SeniorCitizen"] = col.map({"yes": 1, "no": 0}).fillna(0).astype(int)
+            df["SeniorCitizen"] = senior_values.map({"yes": 1, "no": 0}).fillna(0).astype(int)
         else:
             df["SeniorCitizen"] = pd.to_numeric(df["SeniorCitizen"], errors="coerce").fillna(0).astype(int)
     return df
@@ -175,7 +173,7 @@ def validate(df: pd.DataFrame) -> None:
     print("    ✅  All checks passed!")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Convert IBM Telco Churn dataset to standard format."
     )
@@ -186,8 +184,8 @@ def main():
     )
     parser.add_argument(
         "--output",
-        default=os.path.join(os.path.dirname(__file__), "data", "customer_churn.csv"),
-        help="Output path (default: data/customer_churn.csv)",
+        default=os.path.join(os.path.dirname(__file__), "customer_churn.csv"),
+        help="Output path (default: customer_churn.csv)",
     )
     args = parser.parse_args()
 

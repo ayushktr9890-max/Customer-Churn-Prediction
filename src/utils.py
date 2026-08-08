@@ -13,7 +13,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import (
-    classification_report,
     confusion_matrix,
     roc_auc_score,
     roc_curve,
@@ -60,8 +59,7 @@ def load_dataset(filepath: str) -> pd.DataFrame:
     if not os.path.exists(filepath):
         raise FileNotFoundError(
             f"Dataset not found at '{filepath}'.\n"
-            "Please download the IBM Telco Customer Churn dataset from Kaggle "
-            "and place it at data/customer_churn.csv"
+            "Place your dataset in the project root as customer_churn.csv"
         )
     logger.info("Loading dataset from: %s", filepath)
     df = pd.read_csv(filepath)
@@ -156,7 +154,6 @@ def evaluate_model(
         y_prob = model.predict_proba(X_test)[:, 1]
         roc_auc = roc_auc_score(y_test, y_prob)
     else:
-        y_prob = None
         roc_auc = float("nan")
 
     metrics = {
@@ -221,10 +218,10 @@ def plot_confusion_matrix(
     title : str
         Plot title.
     """
-    cm = confusion_matrix(y_test, y_pred)
+    matrix = confusion_matrix(y_test, y_pred)
     plt.figure(figsize=(6, 5))
     sns.heatmap(
-        cm,
+        matrix,
         annot=True,
         fmt="d",
         cmap="Blues",
@@ -268,10 +265,10 @@ def plot_roc_curve(
 
     y_prob = model.predict_proba(X_test)[:, 1]
     fpr, tpr, _ = roc_curve(y_test, y_prob)
-    auc = roc_auc_score(y_test, y_prob)
+    auc_score = roc_auc_score(y_test, y_prob)
 
     plt.figure(figsize=(7, 5))
-    plt.plot(fpr, tpr, color="darkorange", lw=2, label=f"ROC Curve (AUC = {auc:.3f})")
+    plt.plot(fpr, tpr, color="darkorange", lw=2, label=f"ROC Curve (AUC = {auc_score:.3f})")
     plt.plot([0, 1], [0, 1], color="navy", lw=1.5, linestyle="--", label="Random Classifier")
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
@@ -308,13 +305,13 @@ def plot_feature_importance(
     save_path : str, optional
     title : str
     """
-    indices = np.argsort(importances)[::-1][:top_n]
-    top_features = [feature_names[i] for i in indices]
-    top_importances = importances[indices]
+    top_indices = np.argsort(importances)[::-1][:top_n]
+    top_features = [feature_names[i] for i in top_indices]
+    top_importances = importances[top_indices]
 
     plt.figure(figsize=(10, 6))
     colors = plt.cm.RdYlGn(np.linspace(0.3, 0.9, top_n))  # type: ignore[attr-defined]
-    bars = plt.barh(range(top_n), top_importances[::-1], color=colors[::-1])
+    plt.barh(range(top_n), top_importances[::-1], color=colors[::-1])
     plt.yticks(range(top_n), top_features[::-1], fontsize=10)
     plt.xlabel("Importance Score", fontsize=12)
     plt.title(title, fontsize=14, fontweight="bold")
